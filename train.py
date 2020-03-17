@@ -81,19 +81,24 @@ def train(model, optimizer, loss_fn, dataloader, metrics, params):
                 labels_batch = labels_batch.data.cpu().numpy()
 
                 # compute all metrics on this batch
+                # metrics = {'accuracy':accuracy(outputs, labels)} => accuracy(outputs, labels) return accuracy value.
                 summary_batch = {metric:metrics[metric](output_batch, labels_batch)
-                                 for metric in metrics}
-                summary_batch['loss'] = loss.data[0]
-                summ.append(summary_batch)
+                                 for metric in metrics} #ResNet : summary_batch = {'accuracy':accuracy value}
+                summary_batch['loss'] = loss.data[0] #ResNet : summary_batch = {'accuracy':accuracy value, 'loss':loss.data[0]}
+                summ.append(summary_batch) #update loss only [{most recent summary_batch},{recent summary_batch},{less recent summary_batch},...]
 
             # update the average loss
-            loss_avg.update(loss.data[0])
+            loss_avg.update(loss.data[0]) 
 
             t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
             t.update()
 
     # compute mean of all metrics in summary
-    metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]}
+    # for metric in summ[0] = {most recent summary_batch} metric: accuracy, loss
+    # metrics mean : accumulated batche's accuracies and losses mean.... Why do we need this?
+    
+    #metrics_mean = {'accuracy': mean of all batches, 'loss': mean of all batches' loss}
+    metrics_mean = {metric:np.mean([x[metric] for x in summ]) for metric in summ[0]} 
     metrics_string = " ; ".join("{}: {:05.3f}".format(k, v) for k, v in metrics_mean.items())
     logging.info("- Train metrics: " + metrics_string)
 
@@ -390,8 +395,8 @@ if __name__ == '__main__':
             optimizer = optim.SGD(model.parameters(), lr=params.learning_rate,
                                   momentum=0.9, weight_decay=5e-4)
             # fetch loss function and metrics definition in model files
-            loss_fn_kd = net.loss_fn_kd
-            metrics = resnet.metrics
+            loss_fn_kd = net.loss_fn_kd  # loss_fn_kd(outputs, labels, teacher_outputs, params) return KD_loss
+            metrics = resnet.metrics     # accuracy
 
         """ 
             Specify the pre-trained teacher models for knowledge distillation
@@ -431,6 +436,15 @@ if __name__ == '__main__':
         logging.info("Experiment - model version: {}".format(params.model_version))
         logging.info("Starting training for {} epoch(s)".format(params.num_epochs))
         logging.info("First, loading the teacher model and computing its outputs...")
+        
+        # model : student model ex)resnet
+        # teacher_model : ex)resnet
+        # train_dl : ver1. fetch_subset_dataloader ver2.fetch_dataloader
+        # dev_dl : data loader of data augmentation turning off
+        # optimizer : optim.SGD(...)
+        # loss_fn_kd : newely defined loss function
+        # metrics : accuracy in resnet
+        # params : load hyperparameters from json file (maybe) example: print(params.learning_rate) params.learning_rate=0.5
         train_and_evaluate_kd(model, teacher_model, train_dl, dev_dl, optimizer, loss_fn_kd,
                               metrics, params, args.model_dir, args.restore_file)
 
